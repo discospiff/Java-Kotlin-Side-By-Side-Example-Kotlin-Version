@@ -5,16 +5,24 @@ import com.google.android.material.snackbar.Snackbar
 import androidx.appcompat.app.AppCompatActivity
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
+import android.widget.AdapterView
+import android.widget.AdapterView.*
 import android.widget.ArrayAdapter
+import android.widget.Toast
+import edu.uc.jonesbr.myapplication.dao.IFoodDAO
 import edu.uc.jonesbr.myapplication.dto.Food
+import edu.uc.jonesbr.myapplication.dto.FoodType
 
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.content_main.*
+import kotlinx.coroutines.*
 
 class MainActivity : AppCompatActivity() {
 
     private var allFoods  = ArrayList<Food>()
     private var food = Food()
+    private var _foodType: List<FoodType>? = ArrayList<FoodType>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -22,19 +30,55 @@ class MainActivity : AppCompatActivity() {
         setSupportActionBar(toolbar)
 
         fab.setOnClickListener { view ->
-            Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                .setAction("Action", null).show()
+            newFood()
         }
 
         actType.setOnItemClickListener { parent, view, position, id ->
-            // TODO do something here, like change the color based on the cuisine.
+            var selectedFoodType = parent.getItemAtPosition(position) as FoodType
+            var foodTypeName = selectedFoodType.type
+            Toast.makeText(this, " $foodTypeName  Very nutritious!", Toast.LENGTH_LONG).show()
+
         }
 
         btnSave.setOnClickListener {
             save()
         }
+
+        spnFood.onItemSelectedListener = object : OnItemSelectedListener {
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+            }
+
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long
+            ) {
+                food = parent?.getItemAtPosition(position) as Food
+                with(food) {
+                    actType.setText(type)
+                    edtCalories.setText(calories.toString())
+                    edtCost.setText(cost)
+                    edtName.setText(name.properCase())
+                    edtPrepTime.setText(prepTime)
+                }
+            }
+
+        }
         prepopulateFoods()
         updateSpinner()
+        fetchFoodTypes()
+
+    }
+
+    private fun newFood() {
+        food = Food();
+        actType.setText("")
+        edtCalories.setText("")
+        edtCost.setText("")
+        edtName.setText("")
+        edtPrepTime.setText("")
     }
 
     private fun prepopulateFoods() {
@@ -51,8 +95,10 @@ class MainActivity : AppCompatActivity() {
     private fun save() {
         with (food) {
             name = edtName.text.toString()
-            if (edtCalories.text.toString().trim().length > 0) {
-                calories = Integer.parseInt(edtCalories.text.toString())
+            calories = if (edtCalories.text.toString().trim().length > 0) {
+                Integer.parseInt(edtCalories.text.toString())
+            } else {
+                0
             }
             cost = edtCost.text.toString()
             prepTime = edtPrepTime.text.toString()
@@ -81,6 +127,27 @@ class MainActivity : AppCompatActivity() {
         return when (item.itemId) {
             R.id.action_settings -> true
             else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    internal fun fetchFoodTypes() {
+
+        var scope = CoroutineScope(Dispatchers.Main)
+            scope.launch {
+                val service = RetrofitClientInstance.retrofitInstance?.create(IFoodDAO::class.java)
+                val receivedFoodType = async { service?.getFoodTypes() }
+                _foodType =  receivedFoodType.await()
+                val adapter = ArrayAdapter(this@MainActivity, R.layout.support_simple_spinner_dropdown_item, _foodType!!)
+                actType.setAdapter(adapter)
+            }
+
+    }
+
+    fun String.properCase() : String {
+        return if (this.length > 1) {
+            this.substring(0,1).toUpperCase() + this.substring(1).toLowerCase()
+        } else {
+            this
         }
     }
 }
